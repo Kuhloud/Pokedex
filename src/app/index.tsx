@@ -1,6 +1,8 @@
 import { StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ItemRow } from "@/components/item-row";
+import { itemData } from "@/constants/items";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -31,6 +33,12 @@ export default function HomeScreen() {
       style={[styles.safeArea, { backgroundColor: theme.background }]}
     >
       <Text>GET OUT OF CHINA</Text>
+      <ItemRow
+        item={itemData[0]}
+        onPress={() => {
+          alert(itemData[0].name);
+        }}
+      />
     </SafeAreaView>
   );
 }

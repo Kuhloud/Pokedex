@@ -67,9 +67,12 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const Radius = { s: 8, m: 12, l: 16 } as const;
+
 export const Brand = {
   link: "#3c87f7",
   splashOverlay: "#208AEF",
 };
+
+export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+export const MaxContentWidth = 800;
