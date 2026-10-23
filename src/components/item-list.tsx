@@ -1,14 +1,16 @@
 import { FlatList, StyleSheet } from "react-native";
 
-import { Item } from "@/constants/items";
 import { Spacing } from "@/constants/theme";
+import { Item } from "@/services/pokeapi";
 import { ItemRow } from "./item-row";
 
 export function ItemList({ items }: { items: Item[] }) {
   return (
     <FlatList
       data={items}
-      renderItem={({ item }) => <ItemRow item={item} onPress={() => {}} />}
+      renderItem={({ item }) => (
+        <ItemRow item={item} onPress={() => alert(item.name)} />
+      )}
       keyExtractor={(item) => item.id.toString()}
     />
   );

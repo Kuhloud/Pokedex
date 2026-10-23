@@ -1,14 +1,21 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
-import { itemData } from "@/constants/items";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { fetchItemList, Item } from "@/services/pokeapi";
+import { useEffect, useState } from "react";
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
-  const item = itemData.find((i) => i.id === Number(id));
+  const [items, setItems] = useState<Item[]>([]);
+
+  useEffect(() => {
+    fetchItemList().then(setItems);
+  }, []);
+
+  const item = items.find((i) => i.id === Number(id));
 
   if (!item) {
     return (

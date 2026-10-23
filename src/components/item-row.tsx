@@ -1,8 +1,8 @@
-import { Pressable, View } from "react-native";
+import { Image, Pressable, View } from "react-native";
 
-import { Item } from "@/constants/items";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { Item } from "@/services/pokeapi";
 import { ThemedText } from "./themed-text";
 
 type ItemRowProps = {
@@ -34,15 +34,10 @@ export function ItemRow({ item, onPress }: ItemRowProps) {
         >
           {item.name}
         </ThemedText>
-        <ThemedText
-          style={{
-            padding: spacing,
-            borderRadius: radius,
-            color: theme.badgeText,
-          }}
-        >
-          {item.category}
-        </ThemedText>
+        <Image
+          source={{ uri: item.spriteUrl }}
+          style={{ width: 40, height: 40 }}
+        />
       </Pressable>
     </View>
   );
