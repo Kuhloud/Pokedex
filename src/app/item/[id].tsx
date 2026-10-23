@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useItem } from "@/hooks/use_item";
 import { fetchItemList, Item } from "@/services/pokeapi";
 import { useEffect, useState } from "react";
 
@@ -15,7 +16,7 @@ export default function ItemDetail() {
     fetchItemList().then(setItems);
   }, []);
 
-  const item = items.find((i) => i.id === Number(id));
+  const item = useItem(Number(id));
 
   if (!item) {
     return (

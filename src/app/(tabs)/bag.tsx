@@ -20,7 +20,7 @@ export default function BagScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <Text style={[styles.title, { color: theme.text }]}>Bag</Text>
-      <ItemList items={items} />
+      <ItemList items={items.slice(0, 2)} />
     </SafeAreaView>
   );
 }

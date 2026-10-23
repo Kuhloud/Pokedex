@@ -1,29 +1,19 @@
-import { FlatList, StyleSheet } from "react-native";
+import { router } from "expo-router";
+import { FlatList } from "react-native";
 
+import { ItemRow } from "@/components/item-row";
 import { Spacing } from "@/constants/theme";
 import { Item } from "@/services/pokeapi";
-import { ItemRow } from "./item-row";
 
 export function ItemList({ items }: { items: Item[] }) {
   return (
     <FlatList
       data={items}
+      keyExtractor={(item) => String(item.id)}
+      contentContainerStyle={{ gap: Spacing.two, paddingBottom: Spacing.three }}
       renderItem={({ item }) => (
-        <ItemRow item={item} onPress={() => alert(item.name)} />
+        <ItemRow item={item} onPress={() => router.push(`/item/9999`)} />
       )}
-      keyExtractor={(item) => item.id.toString()}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  stepRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  codeSnippet: {
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.half,
-    paddingHorizontal: Spacing.two,
-  },
-});
