@@ -12,7 +12,7 @@ export function ItemList({ items }: { items: Item[] }) {
       keyExtractor={(item) => String(item.id)}
       contentContainerStyle={{ gap: Spacing.two, paddingBottom: Spacing.three }}
       renderItem={({ item }) => (
-        <ItemRow item={item} onPress={() => router.push(`/item/9999`)} />
+        <ItemRow item={item} onPress={() => router.push(`/item/${item.id}`)} />
       )}
     />
   );

@@ -11,7 +11,6 @@ export function ErrorView({ message, onRetry }: Props) {
   return (
     <View style={styles.container}>
       <Text style={{ color: theme.text }}>{message}</Text>
-      <img src="../assets/item-error.png" alt="Error state" width="240" />
       <Pressable
         onPress={onRetry}
         style={[styles.button, { backgroundColor: theme.badge }]}

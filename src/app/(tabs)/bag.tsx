@@ -1,26 +1,33 @@
-import { StyleSheet, Text } from "react-native";
+import { ActivityIndicator, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ErrorView } from "@/components/error-view";
 import { ItemList } from "@/components/item-list";
 import { Spacing } from "@/constants/theme";
+import { useBag } from "@/hooks/use-bag";
 import { useTheme } from "@/hooks/use-theme";
-import { fetchItemList, Item } from "@/services/pokeapi";
-import { useEffect, useState } from "react";
 
 export default function BagScreen() {
   const theme = useTheme();
-  const [items, setItems] = useState<Item[]>([]);
 
-  useEffect(() => {
-    fetchItemList().then(setItems);
-  }, []);
+  const { data, isPending, error, refetch } = useBag();
   return (
     <SafeAreaView
       edges={["top"]}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <Text style={[styles.title, { color: theme.text }]}>Bag</Text>
-      <ItemList items={items.slice(0, 2)} />
+      {data?.length === 0 ? (
+        <Text style={[styles.empty, { color: theme.textSecondary }]}>
+          Your bag is empty. Open an item and tap “Add to bag”.
+        </Text>
+      ) : data ? (
+        <ItemList items={data} />
+      ) : isPending ? (
+        <ActivityIndicator style={styles.center} />
+      ) : (
+        <ErrorView message={error.message} onRetry={refetch} />
+      )}
     </SafeAreaView>
   );
 }
