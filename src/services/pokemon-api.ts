@@ -16,6 +16,14 @@ type TypeResponse = {
   pokemon: { pokemon: NamedResource }[];
 };
 
+type TypeDamageResponse = {
+  damage_relations: {
+    double_damage_to: NamedResource[];
+    half_damage_to: NamedResource[];
+    no_damage_to: NamedResource[];
+  };
+};
+
 type SpeciesResponse = {
   id: number;
   name: string;
@@ -108,6 +116,12 @@ export type PokemonDetails = {
   spriteUrl: string | null;
   shinySpriteUrl: string | null;
   genderSprites: PokemonGenderSprites | null;
+};
+
+export type PokemonTypeDamageRelations = {
+  doubleDamageTo: string[];
+  halfDamageTo: string[];
+  noDamageTo: string[];
 };
 
 export type PokemonGenderSprites = {
@@ -381,6 +395,24 @@ export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
     spriteUrl: artwork?.front_default ?? pokemon.sprites.front_default,
     shinySpriteUrl: artwork?.front_shiny ?? pokemon.sprites.front_shiny,
     genderSprites: getGenderSprites(pokemon.sprites, artwork),
+  };
+}
+
+export async function fetchPokemonTypeDamageRelations(
+  type: string,
+): Promise<PokemonTypeDamageRelations> {
+  const normalizedType = type.trim().toLowerCase();
+  if (!normalizedType) {
+    throw new Error('A Pokémon type is required to fetch type damage relations.');
+  }
+
+  const response = await fetchJson<TypeDamageResponse>(
+    `/type/${encodeURIComponent(normalizedType)}`,
+  );
+  return {
+    doubleDamageTo: response.damage_relations.double_damage_to.map(({ name }) => name),
+    halfDamageTo: response.damage_relations.half_damage_to.map(({ name }) => name),
+    noDamageTo: response.damage_relations.no_damage_to.map(({ name }) => name),
   };
 }
 

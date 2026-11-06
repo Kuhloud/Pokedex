@@ -24,6 +24,10 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Favorites</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="heart" md="favorite_border" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="compare">
+        <NativeTabs.Trigger.Label>Compare</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="arrow.left.arrow.right" md="compare_arrows" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
