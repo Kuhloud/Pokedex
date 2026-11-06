@@ -40,7 +40,6 @@ Retry button if the call fails."_
 notice (reading the diff, testing, your spec)? Point at the chat in
 `chat-history/` or the commit.>
 
-_Example: "For the week forecast, the agent wanted one request per day. I saw
-it in the plan on issue 2 and said no: the forecast endpoint gives all seven
+_Example: ""For showcasing gender differences in pokemon evolution, the agent just had the evolution in order, alongside two tiny artworks in one card with the gender symbol below. I saw it while testing the detail page of a pokemon and asked to change it: Each evolution is now sorted by "Unevolved", "First Evolution", and "Second Evolution". With gender-locked evolution having a gender symbol/text
 days in one call (`src/services/open-meteo.ts:20`). One request instead of
 seven. Chat: issue 2 in `chat-history/`."_

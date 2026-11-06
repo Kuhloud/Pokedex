@@ -22,14 +22,14 @@ more. Each one becomes a GitHub issue.>
 
 - **API**: PokeApi, no login, no key
 - **Endpoints**:
-  /pokemon — Fetch the complete Pokémon index.
+  /pokemon?limit=2000 — Fetch the complete Pokémon index.
   /pokemon/{id or name} — Fetch Pokémon information, including stats, types and sprites.
   /pokemon-species/{id} — Fetch species information and evolution-chain URL.
   /item-category/33/ — Fetch special balls
   /item-category/34/ — Fetch standard balls
 - **Stored on the phone**:
-  Table pokemon in SQLite: id (from PokéAPI), name, height, weight, base_experience, types_json, abilities_json, stats_json, sprites_json, generation, capture_rate, updated_at.
-  Table personal_list: personal_list_id, pokemon_id, created_at.
+  Table pokemon in SQLite: id (PokéAPI Pokémon resource ID), species_id (PokéAPI species ID), name, height, weight, base_experience, types_json, abilities_json, stats_json, sprites_json, forms_json, generation, capture_rate, updated_at. Each base Pokémon and each listed regional, Mega, or Gigantamax variant is a separate row with its own Pokémon resource ID. `forms_json` stores related form metadata, including Pokémon resource IDs and available regular/shiny sprite references.
+  Table personal_list: personal_list_id, pokemon_id (PokéAPI Pokémon resource ID), created_at. Each variant can be favorited independently.
 
 ## Technical choices
 
@@ -64,7 +64,6 @@ build. If you change your mind later, change it here too.>
 - [ ] Design (not Pokédex): a consistent own style with your own font
 - [ ] Localization: two languages
 - [ ] No warnings: no `console.log`, none in the terminal or on screen
-- [ ] Offline: works in airplane mode with the last data
 - [ ] Tests: one per feature on the logic, `npm test` passes
 - [ ] CI: lint and tsc on every push
 - [ ] Accessibility: button labels, largest text size

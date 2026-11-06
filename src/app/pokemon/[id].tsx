@@ -16,7 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ErrorView } from '@/components/error-view';
 import { Radius, Spacing } from '@/constants/theme';
 import {
+  fetchPokemonAppearances,
   fetchPokemonEvolutionFamily,
+  type PokemonAppearance,
   type PokemonEvolution,
 } from '@/services/pokemon-api';
 import {
@@ -70,6 +72,16 @@ const STAT_ORDER = [
 ] as const;
 
 type DetailTab = 'about' | 'stats' | 'evolution';
+type SpriteGender = 'male' | 'female';
+
+const appearanceSelections = new Map<number, string>();
+const genderSelections = new Map<number, SpriteGender>();
+
+const EVOLUTION_STAGES = [
+  { depth: 0, label: 'Unevolved' },
+  { depth: 1, label: 'First Evolution' },
+  { depth: 2, label: 'Second Evolution' },
+] as const;
 
 function formatMeasurement(value: number): string {
   return value.toFixed(1).replace('.', ',');
@@ -93,7 +105,7 @@ function EvolutionCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${pokemon.name}, Pokédex number ${formatPokedexId(pokemon.id)}`}
+      accessibilityLabel={`Open ${pokemon.name}, Pokédex number ${formatPokedexId(pokemon.pokemonId)}`}
       onPress={onPress}
       style={[
         styles.evolutionCard,
@@ -104,46 +116,78 @@ function EvolutionCard({
       ]}>
       <View style={[styles.evolutionSpritePanel, { backgroundColor: theme.backgroundElement }]}>
         {pokemon.spriteUrl ? (
-          pokemon.femaleSpriteUrl ? (
-            <View style={styles.genderSprites}>
-              <View style={styles.genderSprite}>
-                <Image source={{ uri: pokemon.spriteUrl }} style={styles.smallSprite} resizeMode="contain" />
-                <Text style={[styles.genderSymbol, { color: theme.textSecondary }]}>♂</Text>
-              </View>
-              <View style={styles.genderSprite}>
-                <Image
-                  source={{ uri: pokemon.femaleSpriteUrl }}
-                  style={styles.smallSprite}
-                  resizeMode="contain"
-                />
-                <Text style={[styles.genderSymbol, { color: theme.textSecondary }]}>♀</Text>
-              </View>
-            </View>
-          ) : (
-            <Image source={{ uri: pokemon.spriteUrl }} style={styles.evolutionSprite} resizeMode="contain" />
-          )
+          <Image source={{ uri: pokemon.spriteUrl }} style={styles.evolutionSprite} resizeMode="contain" />
         ) : (
           <Text style={[styles.placeholderText, { color: theme.textSecondary }]}>?</Text>
         )}
       </View>
       <View style={styles.evolutionInfo}>
         <Text style={[styles.evolutionId, { backgroundColor: theme.badge, color: theme.badgeText }]}>
-          {formatPokedexId(pokemon.id)}
+          {formatPokedexId(pokemon.pokemonId)}
         </Text>
         <Text style={[styles.evolutionName, { color: theme.text }]} numberOfLines={2}>
           {pokemon.name}
         </Text>
+        {pokemon.specialForm ? (
+          <Text style={[styles.evolutionFormLabel, { color: theme.textSecondary }]}>
+            {pokemon.specialForm}
+          </Text>
+        ) : null}
+        {pokemon.genderOnly ? (
+          <Text style={[styles.evolutionGender, { color: theme.textSecondary }]}>
+            {pokemon.genderOnly === 'male' ? '♂ Male only' : '♀ Female only'}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
+function getSelectedAppearance(
+  appearances: PokemonAppearance[] | undefined,
+  appearanceKey: string | null,
+  formId: number,
+  speciesId: number,
+): PokemonAppearance | undefined {
+  if (!appearances) return undefined;
+  if (appearanceKey) {
+    return appearances.find((appearance) => appearance.key === appearanceKey);
+  }
+  const selectedPokemon = appearances.find(
+    (appearance) =>
+      appearance.key.startsWith('pokemon:') &&
+      appearance.pokemonId === formId &&
+      !appearance.isDefault,
+  );
+  if (selectedPokemon) return selectedPokemon;
+  if (formId === speciesId) {
+    return appearances.find((appearance) => appearance.isDefault);
+  }
+  return undefined;
+}
+
 export default function PokemonDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { id: idParam, formId: formIdParam, shiny: shinyParam } =
-    useLocalSearchParams<{ id?: string; formId?: string; shiny?: string }>();
+  const {
+    id: idParam,
+    formId: formIdParam,
+    shiny: shinyParam,
+    appearance: appearanceParam,
+    selectionId: selectionIdParam,
+    returnTo: returnToParam,
+  } = useLocalSearchParams<{
+    id?: string;
+    formId?: string;
+    shiny?: string;
+    appearance?: string;
+    selectionId?: string;
+    returnTo?: string;
+  }>();
   const id = idParam ? Number(idParam) : Number.NaN;
+  const parsedSelectionId = Number(selectionIdParam);
+  const selectionId =
+    Number.isInteger(parsedSelectionId) && parsedSelectionId > 0 ? parsedSelectionId : id;
   const validId = Number.isInteger(id) && id > 0;
   const [fontsLoaded, fontError] = useFonts({
     Rubik: require('@/assets/fonts/Rubik-Regular.ttf'),
@@ -151,15 +195,42 @@ export default function PokemonDetailScreen() {
     RubikBold: require('@/assets/fonts/Rubik-Bold.ttf'),
   });
   const [selection, setSelection] = useState<PokemonSelection>(() => {
-    const stored = getPokemonSelection(id);
+    const stored = getPokemonSelection(selectionId);
     return {
       formId: Number(formIdParam) || stored.formId,
       shiny: shinyParam === undefined ? stored.shiny : shinyParam === 'true',
     };
   });
+  const [appearanceKey, setAppearanceKey] = useState<string | null>(
+    () =>
+      appearanceParam !== undefined
+        ? appearanceParam || null
+        : appearanceSelections.get(id) ?? null,
+  );
+  const [selectedGender, setSelectedGender] = useState<SpriteGender>(
+    () => genderSelections.get(id) ?? 'male',
+  );
   const [activeTab, setActiveTab] = useState<DetailTab>('about');
-  const pokemonQuery = usePokemonDetails(selection.formId, validId);
+  const appearancesQuery = useQuery({
+    queryKey: ['pokemon', 'appearances', id],
+    queryFn: () => fetchPokemonAppearances(id),
+    enabled: validId,
+    staleTime: 1000 * 60 * 60 * 24,
+  });
+  const activeAppearance = getSelectedAppearance(
+    appearancesQuery.data,
+    appearanceKey,
+    selection.formId,
+    id,
+  );
+  const alternateAppearances =
+    appearancesQuery.data?.filter((appearance) => !appearance.isDefault) ?? [];
+  const activePokemonId = activeAppearance?.pokemonId ?? selection.formId;
+  const pokemonQuery = usePokemonDetails(activePokemonId, validId);
   const formsQuery = usePokemonForms(id, validId);
+  const isRegionalFormSelected =
+    selection.formId !== id &&
+    (formsQuery.data?.some((form) => form.id === selection.formId) ?? true);
   const favoritesQuery = useFavoriteIds();
   const favoriteMutation = useFavoriteMutation();
   const evolutionQuery = useQuery({
@@ -168,14 +239,45 @@ export default function PokemonDetailScreen() {
     enabled: validId,
     staleTime: 1000 * 60 * 60 * 24,
   });
-  const isFavorite = favoritesQuery.data?.includes(id) ?? false;
+  const isFavorite = favoritesQuery.data?.includes(activePokemonId) ?? false;
   const favoriteDisabled =
     favoritesQuery.isPending || favoritesQuery.isError || favoriteMutation.isPending;
 
   const updateSelection = (next: PokemonSelection) => {
     setSelection(next);
-    setPokemonSelection(id, next);
+    setPokemonSelection(selectionId, next);
     router.setParams({ formId: String(next.formId), shiny: String(next.shiny) });
+  };
+
+  const selectAppearance = (appearance: PokemonAppearance) => {
+    const nextKey = appearance.isDefault ? null : appearance.key;
+    setAppearanceKey(nextKey);
+    if (nextKey) appearanceSelections.set(id, nextKey);
+    else appearanceSelections.delete(id);
+
+    const nextSelection = isRegionalFormSelected
+      ? { ...selection, formId: id }
+      : selection;
+    if (nextSelection !== selection) {
+      setSelection(nextSelection);
+      setPokemonSelection(selectionId, nextSelection);
+    }
+    router.setParams({
+      appearance: nextKey ?? '',
+      formId: String(id),
+    });
+  };
+
+  const selectRegionalForm = (formId: number) => {
+    setAppearanceKey(null);
+    appearanceSelections.delete(id);
+    updateSelection({ ...selection, formId });
+    router.setParams({ appearance: '' });
+  };
+
+  const selectGender = (gender: SpriteGender) => {
+    setSelectedGender(gender);
+    genderSelections.set(id, gender);
   };
 
   const screenOptions = <Stack.Screen options={{ headerShown: false }} />;
@@ -233,8 +335,26 @@ export default function PokemonDetailScreen() {
   }
 
   const details = pokemonQuery.data;
-  const shinySprite = selection.shiny && details.shinySpriteUrl;
-  const spriteUrl = shinySprite || details.spriteUrl;
+  const genderSprites = activeAppearance
+    ? activeAppearance.genderSprites
+    : details.genderSprites;
+  const selectedRegularSprite =
+    selectedGender === 'female' && genderSprites?.female
+      ? genderSprites.female
+      : genderSprites?.male ?? activeAppearance?.spriteUrl ?? details.spriteUrl;
+  const selectedShinySprite =
+    (selectedGender === 'female'
+      ? genderSprites?.femaleShiny
+      : genderSprites?.maleShiny) ??
+    activeAppearance?.shinySpriteUrl ??
+    details.shinySpriteUrl;
+  const spriteUrl = selection.shiny ? selectedShinySprite ?? selectedRegularSprite : selectedRegularSprite;
+  const hasGenderDifference = Boolean(
+    genderSprites?.male &&
+      genderSprites.female &&
+      genderSprites.male !== genderSprites.female,
+  );
+  const hasShinySprite = Boolean(selectedShinySprite);
   const types =
     details.types.length > 0
       ? details.types.map((type) => type.charAt(0).toUpperCase() + type.slice(1))
@@ -244,7 +364,7 @@ export default function PokemonDetailScreen() {
   const renderAbout = () => (
     <View style={styles.aboutList}>
       <AboutRow label="Name" value={details.name || 'Not available'} />
-      <AboutRow label="ID" value={formatPokedexId(id)} />
+      <AboutRow label="ID" value={formatPokedexId(details.id)} />
       <AboutRow
         label="Base"
         value={details.baseExperience === null ? 'Not available' : `${details.baseExperience} XP`}
@@ -311,23 +431,45 @@ export default function PokemonDetailScreen() {
 
     return (
       <View style={styles.evolutionList}>
-        {evolutionQuery.data.map((pokemon) => (
-          <EvolutionCard
-            key={`${pokemon.id}-${pokemon.name}`}
-            pokemon={pokemon}
-            selected={pokemon.id === id && !pokemon.isMega}
-            onPress={() =>
-              router.push({
-                pathname: '/pokemon/[id]',
-                params: {
-                  id: String(pokemon.id),
-                  formId: String(pokemon.id),
-                  shiny: 'false',
-                },
-              })
-            }
-          />
-        ))}
+        {EVOLUTION_STAGES.map((stage) => {
+          const members = evolutionQuery.data.filter((pokemon) =>
+            stage.depth === 2 ? pokemon.depth >= 2 : pokemon.depth === stage.depth,
+          );
+          if (members.length === 0) return null;
+
+          return (
+            <View key={stage.label} style={styles.evolutionStage}>
+              <Text style={[styles.evolutionStageTitle, { color: theme.text }]}>
+                {stage.label}
+              </Text>
+              <View style={styles.evolutionStageCards}>
+                {members.map((pokemon) => (
+                  <EvolutionCard
+                    key={`${pokemon.pokemonId}-${pokemon.name}`}
+                    pokemon={pokemon}
+                    selected={
+                      pokemon.speciesId === id && pokemon.pokemonId === activePokemonId
+                    }
+                    onPress={() =>
+                      router.push({
+                        pathname: '/pokemon/[id]',
+                        params: {
+                          id: String(pokemon.speciesId),
+                          formId: String(pokemon.pokemonId),
+                          appearance: pokemon.specialForm
+                            ? `pokemon:${pokemon.pokemonId}`
+                            : '',
+                          shiny: 'false',
+                          returnTo: returnToParam === 'favorites' ? 'favorites' : 'index',
+                        },
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        })}
       </View>
     );
   };
@@ -341,7 +483,11 @@ export default function PokemonDetailScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              onPress={() => router.back()}
+              onPress={() =>
+                router.replace(
+                  returnToParam === 'favorites' ? '/(tabs)/favorites' : '/(tabs)',
+                )
+              }
               style={styles.backButton}>
               <Text style={[styles.backArrow, { color: theme.text }]}>‹</Text>
               <Text style={[styles.backLabel, { color: theme.text }]}>Vorige</Text>
@@ -361,7 +507,7 @@ export default function PokemonDetailScreen() {
               disabled={favoriteDisabled}
               onPress={() =>
                 favoriteMutation.mutate({
-                  id,
+                  id: activePokemonId,
                   favorite: !isFavorite,
                 })
               }
@@ -381,7 +527,7 @@ export default function PokemonDetailScreen() {
               {details.name}
             </Text>
             <Text style={[styles.number, { color: theme.textSecondary }]}>
-              #{formatPokedexId(id)}
+              #{formatPokedexId(details.id)}
             </Text>
           </View>
 
@@ -420,36 +566,102 @@ export default function PokemonDetailScreen() {
           ) : formsQuery.isPending ? (
             <ActivityIndicator color={theme.badge} />
           ) : (formsQuery.data?.length ?? 0) > 1 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.formRow}>
-              {formsQuery.data?.map((form) => (
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: selection.formId === form.id }}
-                  key={form.id}
-                  onPress={() => updateSelection({ ...selection, formId: form.id })}
-                  style={[
-                    styles.formChip,
-                    {
-                      backgroundColor:
-                        selection.formId === form.id ? theme.badge : theme.backgroundElement,
-                    },
-                  ]}>
-                  <Text
-                    style={{
-                      color: selection.formId === form.id ? theme.badgeText : theme.text,
-                      fontFamily: 'RubikMedium',
-                    }}>
-                    {form.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.formSection}>
+              <Text style={[styles.formSectionTitle, { color: theme.text }]}>Regional form</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.formRow}>
+                {formsQuery.data?.map((form) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: selection.formId === form.id }}
+                    key={form.id}
+                    onPress={() => selectRegionalForm(form.id)}
+                    style={[
+                      styles.formChip,
+                      {
+                        backgroundColor:
+                          selection.formId === form.id ? theme.badge : theme.backgroundElement,
+                      },
+                    ]}>
+                    <Text
+                      style={{
+                        color: selection.formId === form.id ? theme.badgeText : theme.text,
+                        fontFamily: 'RubikMedium',
+                      }}>
+                      {form.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
           ) : null}
 
-          {details.shinySpriteUrl ? (
+          {!isRegionalFormSelected && appearancesQuery.isError ? (
+            <ErrorView
+              message={appearancesQuery.error.message}
+              onRetry={() => void appearancesQuery.refetch()}
+            />
+          ) : !isRegionalFormSelected && appearancesQuery.isPending ? (
+            <ActivityIndicator color={theme.badge} />
+          ) : !isRegionalFormSelected && alternateAppearances.length > 0 ? (
+            <View style={styles.formSection}>
+              <Text style={[styles.formSectionTitle, { color: theme.text }]}>Other forms</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.formRow}>
+                {alternateAppearances.map((appearance) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      selected: activeAppearance?.key === appearance.key,
+                    }}
+                    key={appearance.key}
+                    onPress={() => selectAppearance(appearance)}
+                    style={[
+                      styles.formChip,
+                      {
+                        backgroundColor:
+                          activeAppearance?.key === appearance.key
+                            ? theme.badge
+                            : theme.backgroundElement,
+                      },
+                    ]}>
+                    <Text
+                      style={{
+                        color:
+                          activeAppearance?.key === appearance.key
+                            ? theme.badgeText
+                            : theme.text,
+                        fontFamily: 'RubikMedium',
+                      }}>
+                      {appearance.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {hasGenderDifference ? (
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Sprite gender"
+              accessibilityState={{ checked: selectedGender === 'female' }}
+              onPress={() =>
+                selectGender(selectedGender === 'male' ? 'female' : 'male')
+              }
+              style={[styles.shinyButton, { backgroundColor: theme.backgroundElement }]}>
+              <Text style={{ color: theme.text, fontFamily: 'RubikMedium' }}>
+                {selectedGender === 'male' ? 'Male sprite' : 'Female sprite'}
+              </Text>
+              <Text style={{ color: theme.badge, fontFamily: 'RubikMedium' }}>Switch</Text>
+            </Pressable>
+          ) : null}
+
+          {hasShinySprite ? (
             <Pressable
               accessibilityRole="switch"
               accessibilityState={{ checked: selection.shiny }}
@@ -472,6 +684,8 @@ export default function PokemonDetailScreen() {
                 params: {
                   id: String(id),
                   formId: String(selection.formId),
+                  appearance: activeAppearance?.key ?? '',
+                  gender: selectedGender,
                   shiny: String(selection.shiny),
                 },
               })
@@ -598,6 +812,8 @@ const styles = StyleSheet.create({
   },
   placeholderText: { fontFamily: 'RubikMedium', fontSize: 28 },
   selectionControls: { paddingHorizontal: Spacing.three, paddingTop: 54, gap: Spacing.two },
+  formSection: { gap: Spacing.one },
+  formSectionTitle: { fontFamily: 'RubikMedium', fontSize: 13 },
   formRow: { flexDirection: 'row', gap: Spacing.two },
   formChip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.m },
   shinyButton: {
@@ -641,6 +857,9 @@ const styles = StyleSheet.create({
   statFill: { height: '100%', borderRadius: 2 },
   tabLoading: { marginVertical: Spacing.four },
   evolutionList: { gap: Spacing.three },
+  evolutionStage: { gap: Spacing.two },
+  evolutionStageTitle: { fontFamily: 'RubikBold', fontSize: 17 },
+  evolutionStageCards: { gap: Spacing.two },
   evolutionCard: {
     minHeight: 80,
     flexDirection: 'row',
@@ -655,11 +874,9 @@ const styles = StyleSheet.create({
   },
   evolutionSpritePanel: { width: 80, minHeight: 80, alignItems: 'center', justifyContent: 'center' },
   evolutionSprite: { width: 64, height: 64 },
-  genderSprites: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1 },
-  genderSprite: { alignItems: 'center', justifyContent: 'center' },
-  smallSprite: { width: 36, height: 48 },
-  genderSymbol: { fontFamily: 'RubikMedium', fontSize: 11 },
   evolutionInfo: { flex: 1, justifyContent: 'center', alignItems: 'flex-start', padding: Spacing.two, gap: Spacing.one },
   evolutionId: { overflow: 'hidden', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, fontFamily: 'RubikMedium', fontSize: 11 },
   evolutionName: { fontFamily: 'RubikMedium', fontSize: 16 },
+  evolutionFormLabel: { fontFamily: 'RubikMedium', fontSize: 12 },
+  evolutionGender: { fontFamily: 'Rubik', fontSize: 12 },
 });

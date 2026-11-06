@@ -51,6 +51,15 @@ export default function FavoritesScreen() {
   });
   const catalogQuery = usePokemonCatalog();
   const favoriteIdsQuery = useFavoriteIds();
+  const savedPokemon = useMemo(() => {
+    if (!catalogQuery.data || !favoriteIdsQuery.data) return [];
+    const savedIds = new Set(favoriteIdsQuery.data);
+    return [
+      ...catalogQuery.data.species,
+      ...catalogQuery.data.regionalVariants,
+      ...catalogQuery.data.specialVariants,
+    ].filter((pokemon) => savedIds.has(pokemon.id));
+  }, [catalogQuery.data, favoriteIdsQuery.data]);
   const favoriteMutation = useFavoriteMutation();
   const [filters, setFilters] = useState<PokemonFilters>(INITIAL_FILTERS);
   const [sortField, setSortField] = useState<SortField>('id');
@@ -65,7 +74,7 @@ export default function FavoritesScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rarityQuery = usePokemonRarity(
-    catalogQuery.data?.species ?? [],
+    savedPokemon,
     filters.rarities.length > 0,
   );
   const formsQuery = usePokemonForms(formPokemonId ?? 0, formPokemonId !== null);
@@ -86,15 +95,10 @@ export default function FavoritesScreen() {
     [],
   );
 
-  const savedSpecies = useMemo(() => {
-    if (!catalogQuery.data || !favoriteIdsQuery.data) return [];
-    const savedIds = new Set(favoriteIdsQuery.data);
-    return catalogQuery.data.species.filter((pokemon) => savedIds.has(pokemon.id));
-  }, [catalogQuery.data, favoriteIdsQuery.data]);
   const filteredPokemon = useMemo(() => {
     if (!catalogQuery.data) return [];
     const filtered = filterPokemonCatalog(
-      { ...catalogQuery.data, species: savedSpecies },
+      { ...catalogQuery.data, species: savedPokemon },
       filters,
       rarityQuery.data,
     );
@@ -102,7 +106,7 @@ export default function FavoritesScreen() {
       const comparison = sortField === 'id' ? a.id - b.id : a.name.localeCompare(b.name);
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [catalogQuery.data, filters, rarityQuery.data, savedSpecies, sortField, sortOrder]);
+  }, [catalogQuery.data, filters, rarityQuery.data, savedPokemon, sortField, sortOrder]);
   const visiblePokemon = filteredPokemon.slice(0, visibleCount);
   const rarityTagsQuery = usePokemonRarity(
     visiblePokemon,
@@ -136,9 +140,11 @@ export default function FavoritesScreen() {
     router.push({
       pathname: '/pokemon/[id]',
       params: {
-        id: String(pokemon.id),
+        id: String(pokemon.speciesId ?? pokemon.id),
         formId: String(selection.formId),
         shiny: String(selection.shiny),
+        selectionId: String(pokemon.id),
+        returnTo: 'favorites',
       },
     });
   };
@@ -298,7 +304,7 @@ export default function FavoritesScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>Favorites</Text>
+            <Text style={[styles.title, { color: theme.text }]}>My Favorites</Text>
             <View style={styles.controlRow}>
               <Pressable
                 accessibilityRole="button"
@@ -330,7 +336,7 @@ export default function FavoritesScreen() {
           </View>
         }
         ListEmptyComponent={
-          savedSpecies.length === 0 ? (
+          savedPokemon.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No favorites yet</Text>
           ) : undefined
         }
@@ -446,7 +452,7 @@ export default function FavoritesScreen() {
                   <Text style={[styles.menuIcon, { color: theme.text }]}>⋮</Text>
                 </Pressable>
               </View>
-              {regionalSpeciesIds.has(item.id) ? (
+              {!item.speciesId && regionalSpeciesIds.has(item.id) ? (
                 <View style={styles.formRow}>
                   <Pressable
                     accessibilityRole="button"

@@ -143,7 +143,25 @@ export function useFavoriteMutation() {
   return useMutation({
     mutationFn: ({ id, favorite }: { id: number; favorite: boolean }) =>
       favorite ? favoritesDb.addFavorite(id) : favoritesDb.removeFavorite(id),
-    onSuccess: async () => {
+    onMutate: async ({ id, favorite }) => {
+      await queryClient.cancelQueries({ queryKey: ['favorites'] });
+      const previousFavorites = queryClient.getQueryData<number[]>(['favorites']);
+      if (previousFavorites) {
+        queryClient.setQueryData<number[]>(
+          ['favorites'],
+          favorite
+            ? [...new Set([...previousFavorites, id])]
+            : previousFavorites.filter((favoriteId) => favoriteId !== id),
+        );
+      }
+      return { previousFavorites };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousFavorites) {
+        queryClient.setQueryData(['favorites'], context.previousFavorites);
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['favorites'] });
     },
   });

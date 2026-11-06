@@ -148,8 +148,9 @@ export default function PokemonListScreen() {
   };
 
   const addFavorite = (pokemon: PokemonSummary) => {
+    const selection = getPokemonSelection(pokemon.id);
     favoriteMutation.mutate(
-      { id: pokemon.id, favorite: true },
+      { id: selection.formId, favorite: true },
       {
         onSuccess: () => setActionError(null),
         onError: (error) => setActionError(error.message),
