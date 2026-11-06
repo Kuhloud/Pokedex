@@ -35,7 +35,14 @@ export function AnimatedSplashOverlay() {
     },
   });
 
-  const image = <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />;
+  const image = (
+    <Image
+      style={styles.splashLogo}
+      source={require('@/assets/images/pokedex-logo.png')}
+      contentFit="contain"
+      accessibilityLabel="Pokédex+"
+    />
+  );
 
   return animate ? (
     <Animated.View
@@ -132,6 +139,10 @@ const styles = StyleSheet.create({
   image: {
     width: 76,
     height: 71,
+  },
+  splashLogo: {
+    width: 240,
+    height: 72,
   },
   background: {
     borderRadius: 40,

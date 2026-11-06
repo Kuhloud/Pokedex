@@ -73,4 +73,4 @@ export const MaxContentWidth = 800;
 export const Radius = { s: 8, m: 12, l: 16 } as const;
 
 // Colours the template used as loose hex codes.
-export const Brand = { link: "#3c87f7", splash: "#208AEF" } as const;
+export const Brand = { link: "#3c87f7", splash: Colors.light.background } as const;
