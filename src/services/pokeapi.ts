@@ -1,23 +1,23 @@
 export type ItemListItem = { id: number; name: string; spriteUrl: string };
 
-const BASE = 'https://pokeapi.co/api/v2';
+const BASE = "https://pokeapi.co/api/v2";
 
 export const spriteUrl = (slug: string) =>
-  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${slug}.png`;
+  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${slug}.png`;
 
 // 'master-ball' → 'Master Ball'
 const toTitle = (slug: string) =>
   slug
-    .split('-')
+    .split("-")
     .map((word) => word[0].toUpperCase() + word.slice(1))
-    .join(' ');
+    .join(" ");
 
 export async function fetchItemList(limit = 60): Promise<ItemListItem[]> {
   const res = await fetch(`${BASE}/item?limit=${limit}`);
   if (!res.ok) throw new Error(`PokeAPI responded with ${res.status}`);
   const json: { results: { name: string; url: string }[] } = await res.json();
   return json.results.map((r) => ({
-    id: Number(r.url.split('/').filter(Boolean).pop()),
+    id: Number(r.url.split("/").filter(Boolean).pop()),
     name: toTitle(r.name),
     spriteUrl: spriteUrl(r.name),
   }));
@@ -39,9 +39,12 @@ export async function fetchItem(id: number): Promise<Item> {
   const i: ItemResponse = await res.json();
   return {
     id: i.id,
-    name: i.names.find((n) => n.language.name === 'en')?.name ?? toTitle(i.name),
+    name:
+      i.names.find((n) => n.language.name === "en")?.name ?? toTitle(i.name),
     spriteUrl: spriteUrl(i.name),
     category: i.category.name,
-    effect: i.effect_entries.find((e) => e.language.name === 'en')?.short_effect ?? 'No effect text.',
+    effect:
+      i.effect_entries.find((e) => e.language.name === "en")?.short_effect ??
+      "No effect text.",
   };
 }
