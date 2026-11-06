@@ -8,6 +8,16 @@ type ListResponse = {
   results: NamedResource[];
 };
 
+type ItemCategoryResponse = {
+  items: NamedResource[];
+};
+
+type ItemResponse = {
+  id: number;
+  name: string;
+  flavor_text_entries: { text: string; language: NamedResource }[];
+};
+
 type GenerationResponse = {
   pokemon_species: NamedResource[];
 };
@@ -27,6 +37,7 @@ type TypeDamageResponse = {
 type SpeciesResponse = {
   id: number;
   name: string;
+  capture_rate: number;
   is_legendary: boolean;
   is_mythical: boolean;
   gender_rate: number;
@@ -38,6 +49,7 @@ type SpeciesResponse = {
 type PokemonResponse = {
   id: number;
   name: string;
+  game_indices?: { game_index: number; version: NamedResource }[];
   forms: NamedResource[];
   types: { type: NamedResource }[];
   abilities: { ability: NamedResource }[];
@@ -118,6 +130,17 @@ export type PokemonDetails = {
   genderSprites: PokemonGenderSprites | null;
 };
 
+export type PokemonSimulatorDetails = PokemonDetails & {
+  captureRate: number;
+  gameVersions: string[];
+};
+
+export type PokemonBall = {
+  id: number;
+  name: string;
+  description: string;
+};
+
 export type PokemonTypeDamageRelations = {
   doubleDamageTo: string[];
   halfDamageTo: string[];
@@ -142,7 +165,7 @@ export type PokemonAppearance = {
   genderSprites: PokemonGenderSprites | null;
 };
 
-type EvolutionSpecialForm = 'Mega Evolution' | 'Gigantamax';
+type EvolutionSpecialForm = 'Mega Evolution';
 
 export type PokemonEvolution = {
   speciesId: number;
@@ -192,21 +215,21 @@ function getGenderSprites(
 ): PokemonGenderSprites | null {
   const home = sprites.other?.home;
   const female = home?.front_female ?? sprites.front_female;
-  const male = home?.front_default ?? artwork?.front_default ?? sprites.front_default;
+  const male =
+    artwork?.front_default ?? sprites.front_default ?? home?.front_default ?? null;
 
   if (!female || female === male) return null;
 
   return {
     male,
     female,
-    maleShiny: home?.front_shiny ?? artwork?.front_shiny ?? sprites.front_shiny,
+    maleShiny: artwork?.front_shiny ?? sprites.front_shiny ?? home?.front_shiny ?? null,
     femaleShiny: home?.front_shiny_female ?? sprites.front_shiny_female ?? null,
   };
 }
 
 function getFormLabel(name: string, speciesName: string, formName: string): string {
   if (/(?:^|-)mega(?:-|$)/.test(name)) return formatMegaName(name);
-  if (/(?:^|-)gmax$/.test(name)) return 'Gigantamax';
   if (formName) return titleName(formName);
   if (name.startsWith(`${speciesName}-`)) {
     return titleName(name.slice(speciesName.length + 1));
@@ -345,10 +368,7 @@ export async function fetchPokemonCatalog(): Promise<PokemonCatalog> {
       if (speciesId !== undefined && baseName && baseSpeciesName) {
         specialVariants.push({
           id: resourceId(resource),
-          name:
-            specialForm === 'Mega Evolution'
-              ? formatMegaName(resource.name)
-              : `Gigantamax ${baseName}`,
+          name: formatMegaName(resource.name),
           generation: generationByName.get(baseSpeciesName) ?? 0,
           types: typesByName.get(resource.name) ?? [],
           speciesId,
@@ -370,8 +390,7 @@ export async function fetchPokemonCatalog(): Promise<PokemonCatalog> {
   };
 }
 
-export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
-  const pokemon = await fetchJson<PokemonResponse>(`/pokemon/${id}`);
+function mapPokemonDetails(pokemon: PokemonResponse): PokemonDetails {
   const artwork = pokemon.sprites.other?.['official-artwork'];
   const specialForm = getEvolutionSpecialForm(pokemon.name);
   return {
@@ -379,9 +398,7 @@ export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
     name:
       specialForm === 'Mega Evolution'
         ? formatMegaName(pokemon.name)
-        : specialForm === 'Gigantamax'
-          ? `Gigantamax ${titleName(pokemon.species.name)}`
-          : titleName(pokemon.name),
+        : titleName(pokemon.name),
     speciesId: resourceId(pokemon.species),
     types: pokemon.types.map(({ type }) => type.name),
     abilities: pokemon.abilities.map(({ ability }) => titleName(ability.name)),
@@ -396,6 +413,54 @@ export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
     shinySpriteUrl: artwork?.front_shiny ?? pokemon.sprites.front_shiny,
     genderSprites: getGenderSprites(pokemon.sprites, artwork),
   };
+}
+
+export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
+  return mapPokemonDetails(await fetchJson<PokemonResponse>(`/pokemon/${id}`));
+}
+
+export async function fetchPokemonSimulatorDetails(
+  id: number,
+): Promise<PokemonSimulatorDetails> {
+  const pokemon = await fetchJson<PokemonResponse>(`/pokemon/${id}`);
+  const species = await fetchJson<SpeciesResponse>(
+    `/pokemon-species/${resourceId(pokemon.species)}`,
+  );
+  if (!Number.isInteger(species.capture_rate) || species.capture_rate < 1) {
+    throw new Error(`PokéAPI returned an invalid capture rate for Pokémon ${id}.`);
+  }
+
+  return {
+    ...mapPokemonDetails(pokemon),
+    captureRate: species.capture_rate,
+    gameVersions: [...new Set((pokemon.game_indices ?? []).map(({ version }) => version.name))],
+  };
+}
+
+export async function fetchPokemonBalls(): Promise<PokemonBall[]> {
+  const categories = await Promise.all([
+    fetchJson<ItemCategoryResponse>('/item-category/33/'),
+    fetchJson<ItemCategoryResponse>('/item-category/34/'),
+  ]);
+  const items = categories.flatMap(({ items: categoryItems }) => categoryItems);
+  const balls = await mapWithConcurrency(items, 6, async (resource) => {
+    const itemId = resourceId(resource);
+    const item = await fetchJson<ItemResponse>(`/item/${itemId}`);
+    const description = item.flavor_text_entries
+      .find(({ language }) => language.name === 'en')
+      ?.text.replace(/[\n\f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return {
+      id: item.id,
+      name: item.name,
+      description:
+        description || 'PokéAPI does not provide an English description for this item.',
+    };
+  });
+
+  return balls.sort((left, right) => left.id - right.id);
 }
 
 export async function fetchPokemonTypeDamageRelations(
@@ -427,7 +492,7 @@ export async function fetchPokemonAppearances(id: number): Promise<PokemonAppear
   ]);
   const appearances = new Map<string, PokemonAppearance>();
   const nonRegionalForms = basePokemon.forms.filter(
-    ({ name }) => getRegionalLabel(name) === null,
+    ({ name }) => getRegionalLabel(name) === null && !isGigantamax(name),
   );
   const formRecords = await mapWithConcurrency(nonRegionalForms, 6, async (resource) => {
     const form = await fetchJson<PokemonFormResponse>(
@@ -488,7 +553,9 @@ export async function fetchPokemonAppearances(id: number): Promise<PokemonAppear
 
   const alternateVarieties = species.varieties.filter(
     ({ is_default, pokemon }) =>
-      !is_default && getRegionalLabel(pokemon.name) === null,
+      !is_default &&
+      getRegionalLabel(pokemon.name) === null &&
+      !isGigantamax(pokemon.name),
   );
   const varietyRecords = await mapWithConcurrency(alternateVarieties, 6, async ({ pokemon }) => {
     const details = await fetchJson<PokemonResponse>(
@@ -603,8 +670,11 @@ function getEvolutionSpecialForm(
   name: string,
 ): EvolutionSpecialForm | null {
   if (/(?:^|-)mega(?:-|$)/.test(name)) return 'Mega Evolution';
-  if (/(?:^|-)gmax(?:-|$)/.test(name)) return 'Gigantamax';
   return null;
+}
+
+function isGigantamax(name: string): boolean {
+  return /(?:^|-)gmax(?:-|$)/.test(name);
 }
 
 export async function fetchRegionalForms(id: number): Promise<RegionalForm[]> {

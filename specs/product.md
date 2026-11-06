@@ -44,22 +44,22 @@ build. If you change your mind later, change it here too.>
 
 <Tick these off as you build. They are required for a pass.>
 
-- [ ] Runs in Expo Go
-- [ ] Live data through TanStack Query
-- [ ] At least 2 screens with Expo Router
-- [ ] Something in SQLite that survives a restart
-- [ ] Loading and error state on every load
-- [ ] One native feature: Share favorites, in the favorites tab
-- [ ] TypeScript and ESLint without errors
-- [ ] UI, data and logic in separate files
+- [x] Runs in Expo Go
+- [x] Live data through TanStack Query
+- [x] At least 2 screens with Expo Router
+- [x] Something in SQLite that survives a restart
+- [x] Loading and error state on every load
+- [x] One native feature: Share favorites, in the favorites tab
+- [x] TypeScript and ESLint without errors
+- [x] UI, data and logic in separate files
 
 ## Optional
 
 <Tick the ones you built, +0.5 each. Delete the rest or leave them unticked.>
 
 - [ ] Three different Reanimated animations, each with a purpose
-- [ ] Dark mode: every screen looks right, all colours from the theme
-- [ ] Pagination: page by page while you scroll, not all at once
+- [x] Dark mode: every screen looks right, all colours from the theme
+- [x] Pagination: page by page while you scroll, not all at once
 - [ ] Clean TypeScript: no `any`, no `as` casts, no `@ts-ignore`
 - [ ] Design (not Pokédex): a consistent own style with your own font
 - [ ] Localization: two languages

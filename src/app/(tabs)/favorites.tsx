@@ -372,6 +372,15 @@ export default function FavoritesScreen() {
                     />
                   ) : detailsQueries[index]?.isPending ? (
                     <ActivityIndicator color={theme.badge} />
+                  ) : detailsQueries[index]?.isError ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Retry loading ${item.name}`}
+                      onPress={() => void detailsQueries[index]?.refetch()}>
+                      <Text style={[styles.spriteFallback, { color: theme.badge }]}>
+                        Retry sprite
+                      </Text>
+                    </Pressable>
                   ) : (
                     <Text style={[styles.spriteFallback, { color: theme.textSecondary }]}>
                       Sprite unavailable
