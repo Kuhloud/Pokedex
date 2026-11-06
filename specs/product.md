@@ -37,8 +37,8 @@ more. Each one becomes a GitHub issue.>
 you picked, what else you could have done, and why. Write it before you
 build. If you change your mind later, change it here too.>
 
-- **Stored in SQLite**: It allows for local, persistent storage and structured queries, which I am more familiar with.
-- **Native feature**: Share on your collected tab. Share your favorite pokémon with your friends.
+- **Stored in SQLite**: It allows for local, persistent storage and structured queries, which is similar to SQL and I am more familiar with. I don't have enough knowledge about AsyncStorage.
+- **Native feature**: Share on your favorites tab. Share your favorite pokémon with your friends.
 
 ## Technical core
 
@@ -49,7 +49,7 @@ build. If you change your mind later, change it here too.>
 - [ ] At least 2 screens with Expo Router
 - [ ] Something in SQLite that survives a restart
 - [ ] Loading and error state on every load
-- [ ] One native feature: <which one, and where>
+- [ ] One native feature: Share favorites, in the favorites tab
 - [ ] TypeScript and ESLint without errors
 - [ ] UI, data and logic in separate files
 

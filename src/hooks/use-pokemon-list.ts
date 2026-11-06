@@ -42,19 +42,19 @@ export function filterPokemonCatalog(
   filters: PokemonFilters,
   rarity: { legendary: Set<number>; mythical: Set<number> } | undefined,
 ): PokemonCatalog['species'] {
-  const search = filters.search.trim().toLocaleLowerCase();
+  const search = filters.search.trim().toLowerCase();
   const searchActive = search.length >= 2;
   const aliasesBySpecies = new Map<number, string[]>();
   for (const alias of catalog.regionalNameAliases) {
     const aliases = aliasesBySpecies.get(alias.speciesId) ?? [];
-    aliases.push(alias.name.toLocaleLowerCase());
+    aliases.push(alias.name.toLowerCase());
     aliasesBySpecies.set(alias.speciesId, aliases);
   }
 
   return catalog.species.filter((pokemon) => {
     if (
       searchActive &&
-      !pokemon.name.toLocaleLowerCase().includes(search) &&
+      !pokemon.name.toLowerCase().includes(search) &&
       !(aliasesBySpecies.get(pokemon.id) ?? []).some((name) => name.includes(search))
     ) {
       return false;
