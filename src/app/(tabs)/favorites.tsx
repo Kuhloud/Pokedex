@@ -415,7 +415,13 @@ export default function FavoritesScreen() {
                                   : '#10113D',
                           },
                         ]}>
-                        {rarity ?? (selection.shiny ? 'Shiny' : 'Regular')}
+                        {rarity
+                          ? selection.shiny
+                            ? `${rarity} · Shiny`
+                            : rarity
+                          : selection.shiny
+                            ? 'Shiny'
+                            : 'Regular'}
                       </Text>
                     </Pressable>
                   ) : null}

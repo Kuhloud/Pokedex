@@ -22,6 +22,7 @@ type SpeciesResponse = {
   is_legendary: boolean;
   is_mythical: boolean;
   generation: NamedResource;
+  evolution_chain: NamedResource;
   varieties: { is_default: boolean; pokemon: NamedResource }[];
 };
 
@@ -29,11 +30,32 @@ type PokemonResponse = {
   id: number;
   name: string;
   types: { type: NamedResource }[];
+  abilities: { ability: NamedResource }[];
+  height: number;
+  weight: number;
+  base_experience: number | null;
+  stats: { base_stat: number; stat: NamedResource }[];
   sprites: {
     front_default: string | null;
     front_shiny: string | null;
+    front_female: string | null;
+    other?: {
+      'official-artwork'?: {
+        front_default: string | null;
+        front_shiny: string | null;
+      };
+    };
   };
   species: NamedResource;
+};
+
+type EvolutionChainLink = {
+  species: NamedResource;
+  evolves_to: EvolutionChainLink[];
+};
+
+type EvolutionChainResponse = {
+  chain: EvolutionChainLink;
 };
 
 export type PokemonSummary = {
@@ -56,8 +78,21 @@ export type PokemonDetails = {
   name: string;
   speciesId: number;
   types: string[];
+  abilities: string[];
+  height: number;
+  weight: number;
+  baseExperience: number | null;
+  stats: { name: string; value: number }[];
   spriteUrl: string | null;
   shinySpriteUrl: string | null;
+};
+
+export type PokemonEvolution = {
+  id: number;
+  name: string;
+  spriteUrl: string | null;
+  femaleSpriteUrl: string | null;
+  isMega: boolean;
 };
 
 export type PokemonCatalog = {
@@ -198,13 +233,83 @@ export async function fetchPokemonDetails(id: number): Promise<PokemonDetails> {
     name: titleName(pokemon.name),
     speciesId: resourceId(pokemon.species),
     types: pokemon.types.map(({ type }) => type.name),
-    spriteUrl: pokemon.sprites.front_default,
-    shinySpriteUrl: pokemon.sprites.front_shiny,
+    abilities: pokemon.abilities.map(({ ability }) => titleName(ability.name)),
+    height: pokemon.height,
+    weight: pokemon.weight,
+    baseExperience: pokemon.base_experience,
+    stats: pokemon.stats.map(({ base_stat, stat }) => ({
+      name: stat.name,
+      value: base_stat,
+    })),
+    spriteUrl:
+      pokemon.sprites.other?.['official-artwork']?.front_default ??
+      pokemon.sprites.front_default,
+    shinySpriteUrl:
+      pokemon.sprites.other?.['official-artwork']?.front_shiny ??
+      pokemon.sprites.front_shiny,
   };
 }
 
 export async function fetchPokemonSpecies(id: number): Promise<SpeciesResponse> {
   return fetchJson<SpeciesResponse>(`/pokemon-species/${id}`);
+}
+
+export async function fetchPokemonEvolutionFamily(id: number): Promise<PokemonEvolution[]> {
+  const species = await fetchPokemonSpecies(id);
+  const chainId = resourceId(species.evolution_chain);
+  const chain = await fetchJson<EvolutionChainResponse>(`/evolution-chain/${chainId}`);
+  const speciesLinks: NamedResource[] = [];
+
+  const collectSpecies = (link: EvolutionChainLink) => {
+    speciesLinks.push(link.species);
+    link.evolves_to.forEach(collectSpecies);
+  };
+  collectSpecies(chain.chain);
+
+  const familySpecies = await mapWithConcurrency(speciesLinks, 6, async (resource) => {
+    const familyMember = await fetchPokemonSpecies(resourceId(resource));
+    const defaultVariety = familyMember.varieties.find(({ is_default }) => is_default);
+    const megaVarieties = familyMember.varieties.filter(({ pokemon }) =>
+      /(?:^|-)mega(?:-|$)/.test(pokemon.name),
+    );
+    const varieties = new Map<string, { pokemon: NamedResource; isMega: boolean }>();
+
+    varieties.set((defaultVariety?.pokemon ?? resource).name, {
+      pokemon: defaultVariety?.pokemon ?? resource,
+      isMega: false,
+    });
+    for (const { pokemon } of megaVarieties) {
+      varieties.set(pokemon.name, { pokemon, isMega: true });
+    }
+
+    return [...varieties.values()].map(({ pokemon, isMega }) => ({
+      speciesId: familyMember.id,
+      speciesName: familyMember.name,
+      pokemon,
+      isMega,
+    }));
+  });
+
+  const forms = familySpecies.flat();
+  const pokemonForms = await mapWithConcurrency(forms, 8, async (form) => {
+    const pokemon = await fetchJson<PokemonResponse>(`/pokemon/${form.pokemon.name}`);
+    const name = form.isMega
+      ? formatMegaName(form.pokemon.name)
+      : titleName(form.speciesName);
+
+    return {
+      id: form.speciesId,
+      name,
+      spriteUrl: pokemon.sprites.front_female
+        ? pokemon.sprites.front_default
+        : pokemon.sprites.other?.['official-artwork']?.front_default ??
+          pokemon.sprites.front_default,
+      femaleSpriteUrl: form.isMega ? null : pokemon.sprites.front_female,
+      isMega: form.isMega,
+    };
+  });
+
+  return pokemonForms;
 }
 
 export async function fetchRegionalForms(id: number): Promise<RegionalForm[]> {
@@ -226,6 +331,12 @@ export async function fetchRegionalForms(id: number): Promise<RegionalForm[]> {
     };
   });
   return forms.filter((form): form is RegionalForm => form !== null);
+}
+
+function formatMegaName(name: string): string {
+  const [baseName, megaSuffix] = name.split('-mega-');
+  const base = titleName(baseName.replace(/-mega$/, ''));
+  return megaSuffix ? `Mega ${base} ${titleName(megaSuffix)}` : `Mega ${base}`;
 }
 
 export async function fetchRarityIds(

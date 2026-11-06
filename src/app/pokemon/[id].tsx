@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -14,6 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorView } from '@/components/error-view';
 import { Radius, Spacing } from '@/constants/theme';
+import {
+  fetchPokemonEvolutionFamily,
+  type PokemonEvolution,
+} from '@/services/pokemon-api';
 import {
   getPokemonSelection,
   setPokemonSelection,
@@ -46,12 +51,100 @@ const TYPE_COLORS: Record<string, string> = {
   water: '#6390F0',
 };
 
+const DARK_TYPE_TEXT = new Set([
+  'electric',
+  'fairy',
+  'ground',
+  'ice',
+  'normal',
+  'steel',
+]);
+
+const STAT_ORDER = [
+  ['hp', 'HP'],
+  ['attack', 'Attack'],
+  ['defense', 'Defense'],
+  ['special-attack', 'Special Attack'],
+  ['special-defense', 'Special Defense'],
+  ['speed', 'Speed'],
+] as const;
+
+type DetailTab = 'about' | 'stats' | 'evolution';
+
+function formatMeasurement(value: number): string {
+  return value.toFixed(1).replace('.', ',');
+}
+
+function formatPokedexId(id: number): string {
+  return String(id).padStart(3, '0');
+}
+
+function EvolutionCard({
+  pokemon,
+  selected,
+  onPress,
+}: {
+  pokemon: PokemonEvolution;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${pokemon.name}, Pokédex number ${formatPokedexId(pokemon.id)}`}
+      onPress={onPress}
+      style={[
+        styles.evolutionCard,
+        {
+          backgroundColor: theme.card,
+          borderColor: selected ? theme.badge : theme.backgroundElement,
+        },
+      ]}>
+      <View style={[styles.evolutionSpritePanel, { backgroundColor: theme.backgroundElement }]}>
+        {pokemon.spriteUrl ? (
+          pokemon.femaleSpriteUrl ? (
+            <View style={styles.genderSprites}>
+              <View style={styles.genderSprite}>
+                <Image source={{ uri: pokemon.spriteUrl }} style={styles.smallSprite} resizeMode="contain" />
+                <Text style={[styles.genderSymbol, { color: theme.textSecondary }]}>♂</Text>
+              </View>
+              <View style={styles.genderSprite}>
+                <Image
+                  source={{ uri: pokemon.femaleSpriteUrl }}
+                  style={styles.smallSprite}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.genderSymbol, { color: theme.textSecondary }]}>♀</Text>
+              </View>
+            </View>
+          ) : (
+            <Image source={{ uri: pokemon.spriteUrl }} style={styles.evolutionSprite} resizeMode="contain" />
+          )
+        ) : (
+          <Text style={[styles.placeholderText, { color: theme.textSecondary }]}>?</Text>
+        )}
+      </View>
+      <View style={styles.evolutionInfo}>
+        <Text style={[styles.evolutionId, { backgroundColor: theme.badge, color: theme.badgeText }]}>
+          {formatPokedexId(pokemon.id)}
+        </Text>
+        <Text style={[styles.evolutionName, { color: theme.text }]} numberOfLines={2}>
+          {pokemon.name}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function PokemonDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { id: idParam, formId: formIdParam, shiny: shinyParam } =
     useLocalSearchParams<{ id?: string; formId?: string; shiny?: string }>();
   const id = idParam ? Number(idParam) : Number.NaN;
+  const validId = Number.isInteger(id) && id > 0;
   const [fontsLoaded, fontError] = useFonts({
     Rubik: require('@/assets/fonts/Rubik-Regular.ttf'),
     RubikMedium: require('@/assets/fonts/Rubik-Medium.ttf'),
@@ -64,11 +157,20 @@ export default function PokemonDetailScreen() {
       shiny: shinyParam === undefined ? stored.shiny : shinyParam === 'true',
     };
   });
-  const pokemonQuery = usePokemonDetails(selection.formId);
-  const formsQuery = usePokemonForms(id);
+  const [activeTab, setActiveTab] = useState<DetailTab>('about');
+  const pokemonQuery = usePokemonDetails(selection.formId, validId);
+  const formsQuery = usePokemonForms(id, validId);
   const favoritesQuery = useFavoriteIds();
   const favoriteMutation = useFavoriteMutation();
+  const evolutionQuery = useQuery({
+    queryKey: ['pokemon', 'evolution', id],
+    queryFn: () => fetchPokemonEvolutionFamily(id),
+    enabled: validId,
+    staleTime: 1000 * 60 * 60 * 24,
+  });
   const isFavorite = favoritesQuery.data?.includes(id) ?? false;
+  const favoriteDisabled =
+    favoritesQuery.isPending || favoritesQuery.isError || favoriteMutation.isPending;
 
   const updateSelection = (next: PokemonSelection) => {
     setSelection(next);
@@ -76,88 +178,253 @@ export default function PokemonDetailScreen() {
     router.setParams({ formId: String(next.formId), shiny: String(next.shiny) });
   };
 
+  const screenOptions = <Stack.Screen options={{ headerShown: false }} />;
+
   if (fontError) {
     return (
-      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={{ color: theme.text }}>The Rubik font could not be loaded.</Text>
-      </SafeAreaView>
+      <>
+        {screenOptions}
+        <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+          <Text style={{ color: theme.text }}>The Rubik font could not be loaded.</Text>
+        </SafeAreaView>
+      </>
     );
   }
   if (!fontsLoaded) {
     return (
-      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.badge} />
-      </SafeAreaView>
+      <>
+        {screenOptions}
+        <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+          <ActivityIndicator color={theme.badge} />
+        </SafeAreaView>
+      </>
     );
   }
-  if (!Number.isInteger(id) || id < 1) {
+  if (!validId) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
-        <ErrorView message="The Pokémon ID is invalid." onRetry={() => router.back()} />
-      </SafeAreaView>
+      <>
+        {screenOptions}
+        <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+          <ErrorView message="The Pokémon ID is invalid." onRetry={() => router.back()} />
+        </SafeAreaView>
+      </>
     );
   }
   if (!pokemonQuery.data) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
-        <Stack.Screen options={{ title: 'Pokémon', headerBackButtonDisplayMode: 'minimal' }} />
-        {pokemonQuery.isPending ? (
-          <ActivityIndicator style={styles.centered} color={theme.badge} />
-        ) : (
-          <ErrorView
-            message={
-              pokemonQuery.error instanceof Error
-                ? pokemonQuery.error.message
-                : 'Unable to load this Pokémon.'
-            }
-            onRetry={() => void pokemonQuery.refetch()}
-          />
-        )}
-      </SafeAreaView>
+      <>
+        {screenOptions}
+        <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+          {pokemonQuery.isPending ? (
+            <ActivityIndicator style={styles.centered} color={theme.badge} />
+          ) : (
+            <ErrorView
+              message={
+                pokemonQuery.error instanceof Error
+                  ? pokemonQuery.error.message
+                  : 'Unable to load this Pokémon.'
+              }
+              onRetry={() => void pokemonQuery.refetch()}
+            />
+          )}
+        </SafeAreaView>
+      </>
     );
   }
 
-  return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <Stack.Screen
-        options={{
-          title: pokemonQuery.data.name,
-          headerBackButtonDisplayMode: 'minimal',
-        }}
+  const details = pokemonQuery.data;
+  const shinySprite = selection.shiny && details.shinySpriteUrl;
+  const spriteUrl = shinySprite || details.spriteUrl;
+  const types =
+    details.types.length > 0
+      ? details.types.map((type) => type.charAt(0).toUpperCase() + type.slice(1))
+      : ['Not available'];
+  const abilities = details.abilities.length > 0 ? details.abilities.join(', ') : 'Not available';
+
+  const renderAbout = () => (
+    <View style={styles.aboutList}>
+      <AboutRow label="Name" value={details.name || 'Not available'} />
+      <AboutRow label="ID" value={formatPokedexId(id)} />
+      <AboutRow
+        label="Base"
+        value={details.baseExperience === null ? 'Not available' : `${details.baseExperience} XP`}
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.spritePanel, { backgroundColor: theme.backgroundElement }]}>
-          {pokemonQuery.data.spriteUrl ? (
-            <Image
-              source={{
-                uri:
-                  selection.shiny && pokemonQuery.data.shinySpriteUrl
-                    ? pokemonQuery.data.shinySpriteUrl
-                    : pokemonQuery.data.spriteUrl,
-              }}
-              style={styles.sprite}
-              resizeMode="contain"
-            />
+      <AboutRow
+        label="Weight"
+        value={`${formatMeasurement(details.weight / 10)} kg`}
+      />
+      <AboutRow
+        label="Height"
+        value={`${formatMeasurement(details.height / 10)} m`}
+      />
+      <AboutRow label="Types" value={types.join(', ')} />
+      <AboutRow label="Abilities" value={abilities} />
+    </View>
+  );
+
+  const renderStats = () => (
+    <View style={styles.statsList}>
+      {STAT_ORDER.map(([name, label]) => {
+        const stat = details.stats.find((entry) => entry.name === name);
+        const value = stat?.value;
+
+        return (
+          <View key={name} style={styles.stat}>
+            <View style={styles.statHeading}>
+              <Text style={[styles.statLabel, { color: theme.text }]}>{label}</Text>
+              <Text style={[styles.statValue, { color: theme.textSecondary }]}>
+                {value === undefined ? 'Not available' : value}
+              </Text>
+            </View>
+            <View style={[styles.statTrack, { backgroundColor: theme.backgroundElement }]}>
+              {value !== undefined ? (
+                <View
+                  style={[
+                    styles.statFill,
+                    {
+                      backgroundColor: theme.badge,
+                      width: `${(Math.min(value, 255) / 255) * 100}%`,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+
+  const renderEvolution = () => {
+    if (evolutionQuery.isPending) {
+      return <ActivityIndicator style={styles.tabLoading} color={theme.badge} />;
+    }
+
+    if (evolutionQuery.isError) {
+      return (
+        <ErrorView
+          message={evolutionQuery.error.message}
+          onRetry={() => void evolutionQuery.refetch()}
+        />
+      );
+    }
+
+    return (
+      <View style={styles.evolutionList}>
+        {evolutionQuery.data.map((pokemon) => (
+          <EvolutionCard
+            key={`${pokemon.id}-${pokemon.name}`}
+            pokemon={pokemon}
+            selected={pokemon.id === id && !pokemon.isMega}
+            onPress={() =>
+              router.push({
+                pathname: '/pokemon/[id]',
+                params: {
+                  id: String(pokemon.id),
+                  formId: String(pokemon.id),
+                  shiny: 'false',
+                },
+              })
+            }
+          />
+        ))}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.card }]}>
+      {screenOptions}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={[styles.hero, { backgroundColor: theme.background }]}>
+          <View style={styles.topBar}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={() => router.back()}
+              style={styles.backButton}>
+              <Text style={[styles.backArrow, { color: theme.text }]}>‹</Text>
+              <Text style={[styles.backLabel, { color: theme.text }]}>Vorige</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                favoritesQuery.isPending
+                  ? 'Loading Favorites'
+                  : favoritesQuery.isError
+                  ? 'Favorites unavailable'
+                  : isFavorite
+                    ? 'Remove from Favorites'
+                    : 'Add to Favorites'
+              }
+              accessibilityState={{ disabled: favoriteDisabled, selected: isFavorite }}
+              disabled={favoriteDisabled}
+              onPress={() =>
+                favoriteMutation.mutate({
+                  id,
+                  favorite: !isFavorite,
+                })
+              }
+              style={styles.favoriteIconButton}>
+              <Text
+                style={[
+                  styles.favoriteIcon,
+                  { color: isFavorite ? '#FF5272' : theme.text },
+                ]}>
+                {favoritesQuery.isPending ? '…' : isFavorite ? '♥' : '♡'}
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.nameRow}>
+            <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+              {details.name}
+            </Text>
+            <Text style={[styles.number, { color: theme.textSecondary }]}>
+              #{formatPokedexId(id)}
+            </Text>
+          </View>
+
+          <View style={styles.typeRow}>
+            {details.types.map((type) => (
+              <View
+                key={type}
+                style={[
+                  styles.typeBadge,
+                  { backgroundColor: TYPE_COLORS[type] ?? theme.badge },
+                ]}>
+                <View style={styles.typeDot} />
+                <Text
+                  style={[
+                    styles.typeText,
+                    { color: DARK_TYPE_TEXT.has(type) ? theme.text : '#FFFFFF' },
+                  ]}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {spriteUrl ? (
+            <Image source={{ uri: spriteUrl }} style={styles.heroSprite} resizeMode="contain" />
           ) : (
-            <Text style={{ color: theme.textSecondary }}>Sprite unavailable</Text>
+            <View style={[styles.heroSpritePlaceholder, { backgroundColor: theme.backgroundElement }]}>
+              <Text style={[styles.placeholderText, { color: theme.textSecondary }]}>?</Text>
+            </View>
           )}
         </View>
-        <Text style={[styles.title, { color: theme.text }]}>{pokemonQuery.data.name}</Text>
-        <Text style={[styles.number, { color: theme.textSecondary }]}>
-          #{String(id).padStart(3, '0')}
-        </Text>
 
-        <View style={styles.controls}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Form</Text>
-          {formsQuery.isPending ? <ActivityIndicator color={theme.badge} /> : null}
+        <View style={styles.selectionControls}>
           {formsQuery.isError ? (
-            <ErrorView
-              message={formsQuery.error.message}
-              onRetry={() => void formsQuery.refetch()}
-            />
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {(formsQuery.data ?? []).map((form) => (
+            <ErrorView message={formsQuery.error.message} onRetry={() => void formsQuery.refetch()} />
+          ) : formsQuery.isPending ? (
+            <ActivityIndicator color={theme.badge} />
+          ) : (formsQuery.data?.length ?? 0) > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.formRow}>
+              {formsQuery.data?.map((form) => (
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{ selected: selection.formId === form.id }}
@@ -167,7 +434,7 @@ export default function PokemonDetailScreen() {
                     styles.formChip,
                     {
                       backgroundColor:
-                        selection.formId === form.id ? theme.badge : theme.card,
+                        selection.formId === form.id ? theme.badge : theme.backgroundElement,
                     },
                   ]}>
                   <Text
@@ -180,86 +447,219 @@ export default function PokemonDetailScreen() {
                 </Pressable>
               ))}
             </ScrollView>
-          )}
-          {pokemonQuery.data.shinySpriteUrl ? (
+          ) : null}
+
+          {details.shinySpriteUrl ? (
             <Pressable
               accessibilityRole="switch"
               accessibilityState={{ checked: selection.shiny }}
               onPress={() => updateSelection({ ...selection, shiny: !selection.shiny })}
-              style={[styles.shinyButton, { backgroundColor: theme.card }]}>
+              style={[styles.shinyButton, { backgroundColor: theme.backgroundElement }]}>
               <Text style={{ color: theme.text, fontFamily: 'RubikMedium' }}>
                 {selection.shiny ? 'Shiny sprite' : 'Regular sprite'}
               </Text>
-              <Text style={{ color: theme.badge }}>{selection.shiny ? 'On' : 'Off'}</Text>
+              <Text style={{ color: theme.badge, fontFamily: 'RubikMedium' }}>
+                {selection.shiny ? 'On' : 'Off'}
+              </Text>
             </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({
+                pathname: '/pokemon/simulator/[id]',
+                params: {
+                  id: String(id),
+                  formId: String(selection.formId),
+                  shiny: String(selection.shiny),
+                },
+              })
+            }
+            style={[styles.catchButton, { backgroundColor: theme.badge }]}>
+            <Text style={[styles.catchButtonText, { color: theme.badgeText }]}>Catch</Text>
+          </Pressable>
+
+          {favoritesQuery.isError ? (
+            <ErrorView
+              message={`Favorites could not be loaded: ${favoritesQuery.error.message}`}
+              onRetry={() => void favoritesQuery.refetch()}
+            />
+          ) : null}
+          {favoriteMutation.isError ? (
+            <Text accessibilityRole="alert" style={[styles.errorText, { color: theme.text }]}>
+              {favoriteMutation.error.message}
+            </Text>
           ) : null}
         </View>
 
-        <View style={styles.controls}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Type</Text>
-          <View style={styles.chipRow}>
-            {pokemonQuery.data.types.map((type) => (
-              <View key={type} style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[type] ?? theme.badge }]}>
-                <Text style={styles.typeText}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
-              </View>
-            ))}
-          </View>
+        <View style={[styles.tabs, { borderBottomColor: theme.backgroundSelected }]}>
+          {(['about', 'stats', 'evolution'] as const).map((tab) => {
+            const selected = activeTab === tab;
+            const label = tab === 'about' ? 'About' : tab === 'stats' ? 'Stats' : 'Evolution';
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={[
+                  styles.tab,
+                  selected && { borderBottomColor: theme.badge },
+                ]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: selected ? theme.text : theme.textSecondary },
+                  ]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          disabled={favoriteMutation.isPending || favoritesQuery.isPending}
-          onPress={() =>
-            favoriteMutation.mutate({
-              id,
-              favorite: !isFavorite,
-            })
-          }
-          style={[styles.favoriteButton, { backgroundColor: theme.badge }]}>
-          <Text style={{ color: theme.badgeText, fontFamily: 'RubikMedium' }}>
-            {favoriteMutation.isPending
-              ? 'Saving...'
-              : isFavorite
-                ? 'Remove from Favorites'
-                : 'Add to Favorites'}
-          </Text>
-        </Pressable>
-        {favoriteMutation.isError ? (
-          <Text accessibilityRole="alert" style={{ color: theme.text }}>
-            {favoriteMutation.error.message}
-          </Text>
-        ) : null}
+        <View style={styles.tabContent}>
+          {activeTab === 'about'
+            ? renderAbout()
+            : activeTab === 'stats'
+              ? renderStats()
+              : renderEvolution()}
+        </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function AboutRow({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.aboutRow}>
+      <Text style={[styles.aboutLabel, { color: theme.text }]}>{label}</Text>
+      <Text style={[styles.aboutValue, { color: theme.textSecondary }]}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { padding: Spacing.three, gap: Spacing.three, paddingBottom: Spacing.five },
-  spritePanel: { minHeight: 240, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.l },
-  sprite: { width: 220, height: 220 },
-  title: { fontFamily: 'RubikBold', fontSize: 28, textAlign: 'center' },
-  number: { fontFamily: 'RubikMedium', textAlign: 'center', marginTop: -Spacing.two },
-  controls: { gap: Spacing.two },
-  sectionTitle: { fontFamily: 'RubikBold', fontSize: 18 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  content: { paddingBottom: Spacing.five },
+  hero: { height: 330, paddingHorizontal: Spacing.three, paddingTop: Spacing.one },
+  topBar: {
+    height: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  backButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  backArrow: { fontSize: 34, lineHeight: 36, marginTop: -4 },
+  backLabel: { fontFamily: 'Rubik', fontSize: 16 },
+  favoriteIconButton: { minWidth: 40, minHeight: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  favoriteIcon: { fontSize: 28, lineHeight: 32 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
+  title: { flexShrink: 1, fontFamily: 'RubikBold', fontSize: 28 },
+  number: { fontFamily: 'Rubik', fontSize: 20 },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 20,
+  },
+  typeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFFFFF' },
+  typeText: { fontFamily: 'RubikMedium', fontSize: 14 },
+  heroSprite: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    bottom: -48,
+    alignSelf: 'center',
+    zIndex: 2,
+  },
+  heroSpritePlaceholder: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    bottom: -38,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.l,
+  },
+  placeholderText: { fontFamily: 'RubikMedium', fontSize: 28 },
+  selectionControls: { paddingHorizontal: Spacing.three, paddingTop: 54, gap: Spacing.two },
+  formRow: { flexDirection: 'row', gap: Spacing.two },
   formChip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.m },
   shinyButton: {
-    minHeight: 48,
+    minHeight: 44,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.m,
   },
-  typeBadge: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.m },
-  typeText: { color: '#FFFFFF', fontFamily: 'RubikMedium' },
-  favoriteButton: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.m,
+  catchButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.m },
+  catchButtonText: { fontFamily: 'RubikMedium', fontSize: 16 },
+  errorText: { fontFamily: 'Rubik', fontSize: 13 },
+  tabs: {
+    flexDirection: 'row',
+    marginTop: Spacing.three,
+    marginHorizontal: Spacing.three,
+    borderBottomWidth: 2,
   },
+  tab: {
+    flex: 1,
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -2,
+  },
+  tabText: { fontFamily: 'RubikMedium', fontSize: 14 },
+  tabContent: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three },
+  aboutList: { gap: Spacing.three },
+  aboutRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  aboutLabel: { width: '35%', fontFamily: 'RubikMedium', fontSize: 14 },
+  aboutValue: { flex: 1, fontFamily: 'Rubik', fontSize: 14 },
+  statsList: { gap: Spacing.three },
+  stat: { gap: Spacing.one },
+  statHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statLabel: { fontFamily: 'RubikMedium', fontSize: 14 },
+  statValue: { fontFamily: 'Rubik', fontSize: 14 },
+  statTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  statFill: { height: '100%', borderRadius: 2 },
+  tabLoading: { marginVertical: Spacing.four },
+  evolutionList: { gap: Spacing.three },
+  evolutionCard: {
+    minHeight: 80,
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: Radius.m,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#10113D',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  evolutionSpritePanel: { width: 80, minHeight: 80, alignItems: 'center', justifyContent: 'center' },
+  evolutionSprite: { width: 64, height: 64 },
+  genderSprites: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1 },
+  genderSprite: { alignItems: 'center', justifyContent: 'center' },
+  smallSprite: { width: 36, height: 48 },
+  genderSymbol: { fontFamily: 'RubikMedium', fontSize: 11 },
+  evolutionInfo: { flex: 1, justifyContent: 'center', alignItems: 'flex-start', padding: Spacing.two, gap: Spacing.one },
+  evolutionId: { overflow: 'hidden', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, fontFamily: 'RubikMedium', fontSize: 11 },
+  evolutionName: { fontFamily: 'RubikMedium', fontSize: 16 },
 });
