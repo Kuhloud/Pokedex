@@ -2,7 +2,7 @@
 
 ## Context
 
-- The detail screen is `src/app/pokémon/[id].tsx`; it opens from a Pokémon card.
+- The detail screen is `src/app/pokemon/[id].tsx`; it opens from a Pokémon card.
 - Pokémon data comes from PokeAPI `/pokemon/{id}` and `/pokemon-species/{id}`. The species response supplies the evolution-chain URL.
 - The list screen, including its regional-form picker and shiny toggle, is specified in `specs/features/pokedex-list.md`.
 - Favorites are stored in SQLite in the `personal_list` table defined in `specs/product.md`.
@@ -23,7 +23,7 @@
 - When returning to the list, keep the form and regular/shiny setting most recently selected on the detail screen.
 - Provide a back button that returns to the screen that opened the detail page.
 - Provide a Favorite control that adds or removes this Pokémon from the user's SQLite Favorites. The control reflects whether it is currently saved.
-- Provide a “Catch” button that opens `src/app/pokémon/simulator/[id].tsx` for the selected Pokémon. Catching behavior is specified separately in `specs/features/pokedex-simulator.md`.
+- Provide a “Catch” button that opens `src/app/pokemon/simulator/[id].tsx` for the selected Pokémon. Catching behavior is specified separately in `specs/features/pokedex-simulator.md`.
 
 ### Tabs
 

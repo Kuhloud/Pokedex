@@ -18,8 +18,8 @@ export default function TabLayout() {
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
-            name="item/[id]"
-            options={{ title: 'Item', headerBackButtonDisplayMode: 'minimal' }}
+            name="pokemon/[id]"
+            options={{ title: 'Pokémon', headerBackButtonDisplayMode: 'minimal' }}
           />
         </Stack>
       </QueryClientProvider>

@@ -8,7 +8,7 @@ Browse and manage a personal list of favorite Pokémon, then open a favorite’s
 
 - The home screen has a Pokémon tab and a Favorites tab. Favorites is a tab, not a separate detail route.
 - The Favorites tab screen is `src/app/(tabs)/favorites.tsx`.
-- Pokémon details use `src/app/pokémon/[id].tsx`.
+- Pokémon details use `src/app/pokemon/[id].tsx`.
 - The Pokémon index, card behavior, regional forms, and sprite toggle are specified in `specs/features/pokedex-list.md`.
 - The Pokémon detail and evolution-chain loading and error behavior are specified in `specs/features/pokedex-detail.md`.
 - Favorites are user-specific data stored on the phone in SQLite, separately from Pokémon API data. Use the `personal_list` table defined in `specs/product.md`.

@@ -4,7 +4,7 @@
 
 - The Pokémon index is on the Pokémon tab at `src/app/(tabs)/index.tsx`.
 - The index, sorting, filters, cards, and regional forms are specified in `specs/features/pokedex-list.md`.
-- The Pokémon detail screen is at `src/app/pokémon/[id].tsx`.
+- The Pokémon detail screen is at `src/app/pokemon/[id].tsx`.
 - Use the existing theme in `src/constants/theme.ts`, the Rubik font files in `assets/fonts` loaded with Expo Font, and no new dependencies.
 
 ## Goals

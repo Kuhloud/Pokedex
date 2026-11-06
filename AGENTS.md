@@ -37,7 +37,8 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
-- For every line of code, add a comment specifying what it does in a adhd/asd-friendly way, and also add that it was by copilot.
+- Follow the Figma design consistently across all screens and components.
+- Keep the alignment, positioning, and spacing of repeated UI elements consistent.
 
 ## Existing Project
 

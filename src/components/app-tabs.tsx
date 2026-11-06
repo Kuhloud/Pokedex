@@ -1,27 +1,28 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   return (
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
+      iconColor={{ default: colors.textSecondary, selected: colors.badge }}
       labelStyle={{ selected: { color: colors.text } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Items</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Pokémon</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
+          sf="circle.inset.filled"
+          md="sports_baseball"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="bag">
-        <NativeTabs.Trigger.Label>Bag</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="bag.fill" md="shopping_bag" />
+      <NativeTabs.Trigger name="favorites">
+        <NativeTabs.Trigger.Label>Favorites</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="heart" md="favorite_border" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

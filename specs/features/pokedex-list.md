@@ -2,7 +2,7 @@
 
 ## Context
 
-- The Pokédex list lives in the Pokémon tab at `src/app/(tabs)/index.tsx`; opening a Pokémon uses the detail route at `src/app/pokémon/[id].tsx`.
+- The Pokédex list lives in the Pokémon tab at `src/app/(tabs)/index.tsx`; opening a Pokémon uses the detail route at `src/app/pokemon/[id].tsx`.
 - Pokémon data comes from the PokeAPI (`/pokemon` and `/pokemon-species/{id}`).
 - Use the existing theme in `src/constants/theme.ts`, the Rubik font files in `assets/fonts` loaded with Expo Font, and no new dependencies.
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-- The simulator screen is `src/app/pokémon/simulator/[id].tsx`; it opens from the selected Pokémon's detail page.
+- The simulator screen is `src/app/pokemon/simulator/[id].tsx`; it opens from the selected Pokémon's detail page.
 - Pokémon species data, including its base capture rate, comes from PokeAPI `/pokemon-species/{id}`. Game appearances come from `/pokemon/{id}`; item-category endpoints are listed in `specs/product.md`.
 - The simulator uses Poké Balls from item categories 33 and 34.
 - Use the existing theme in `src/constants/theme.ts`, the Rubik font files in `assets/fonts`, and no new dependencies.

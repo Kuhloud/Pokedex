@@ -9,13 +9,13 @@ import { Platform } from "react-native";
 
 export const Colors = {
   light: {
-    text: "#22303C",
-    background: "#F5F2EC",
-    backgroundElement: "#F0F0F3",
-    backgroundSelected: "#E0E1E6",
-    textSecondary: "#60646C",
+    text: "#10113D",
+    background: "#EDF6FF",
+    backgroundElement: "#F5F5FF",
+    backgroundSelected: "#E8E8FF",
+    textSecondary: "#656782",
     card: "#FFFFFF",
-    badge: "#2E7D5B",
+    badge: "#5B35F5",
     badgeText: "#FFFFFF",
   },
   dark: {
